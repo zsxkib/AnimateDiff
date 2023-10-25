@@ -16,10 +16,15 @@ build:
     - "safetensors==0.3.1"
     - "imageio==2.27.0"
     - "triton"
+    - "gdown"
+    - "einops"
+    - "omegaconf"
+    - "safetensors"
 
   run:
-    - "pip install xformers"
-    - "apt-get update && apt-get install -y git-lfs ffmpeg"
-    - "pip install imageio[ffmpeg]"
+    - pip install xformers
+    - apt-get update && apt-get install -y git-lfs ffmpeg
+    - pip install imageio[ffmpeg]
+    - curl -o /usr/local/bin/pget -L "https://github.com/replicate/pget/releases/download/v0.0.3/pget" && chmod +x /usr/local/bin/pget
 
 predict: "predict.py:Predictor"

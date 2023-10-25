@@ -38,11 +38,11 @@ wget -O models/MotionLoRA/v2_lora_PanDown.ckpt https://huggingface.co/guoyww/ani
 wget -O models/MotionLoRA/v2_lora_PanUp.ckpt https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_TiltUp.ckpt || true
 
 # Download DreamBooth_LoRA models
-wget -O models/DreamBooth_LoRA/toonyou_beta3.safetensors https://civitai.com/api/download/models/78775 || true
-wget -O models/DreamBooth_LoRA/lyriel_v16.safetensors https://civitai.com/api/download/models/72396 || true
-wget -O models/DreamBooth_LoRA/rcnzCartoon3d_v10.safetensors https://civitai.com/api/download/models/71009 || true
-wget -O models/DreamBooth_LoRA/majicmixRealistic_v5Preview.safetensors https://civitai.com/api/download/models/79068 || true
-wget -O models/DreamBooth_LoRA/realisticVisionV40_v20Novae.safetensors https://civitai.com/api/download/models/29460 || true
+pget https://civitai.com/api/download/models/78775 models/DreamBooth_LoRA/toonyou_beta3.safetensors || true
+pget https://civitai.com/api/download/models/72396 models/DreamBooth_LoRA/lyriel_v16.safetensors || true
+pget https://civitai.com/api/download/models/71009 models/DreamBooth_LoRA/rcnzCartoon3d_v10.safetensors || true
+pget https://civitai.com/api/download/models/79068 models/DreamBooth_LoRA/majicmixRealistic_v5Preview.safetensors || true
+pget https://civitai.com/api/download/models/29460 models/DreamBooth_LoRA/realisticVisionV40_v20Novae.safetensors || true
 
 # Execute remaining download scripts
 bash download_bashscripts/1-ToonYou.sh || true
