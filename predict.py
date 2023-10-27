@@ -70,8 +70,32 @@ MOTION_MODULE_LORA_CONFIG_TEMPLATE = """
 class Predictor(BasePredictor):
     def setup(self) -> None:
         """Load the model into memory to make running multiple predictions efficient"""
-        print("Setup passed")
-        return None
+        self.inference_config_path = "configs/inference/inference-v2.yaml"
+        self.pretrained_model_path = "models/StableDiffusion/stable-diffusion-v1-5"
+
+        self.inference_config = OmegaConf.load(self.inference_config_path)
+
+        self.tokenizer = CLIPTokenizer.from_pretrained(self.pretrained_model_path, subfolder="tokenizer")
+        self.text_encoder = CLIPTextModel.from_pretrained(self.pretrained_model_path, subfolder="text_encoder")
+        self.vae = AutoencoderKL.from_pretrained(self.pretrained_model_path, subfolder="vae")
+        self.unet = UNet3DConditionModel.from_pretrained_2d(
+            self.pretrained_model_path,
+            subfolder="unet",
+            unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs),
+        )
+
+        if is_xformers_available():
+            self.unet.enable_xformers_memory_efficient_attention()
+        else:
+            assert False
+
+        self.pipeline = AnimationPipeline(
+            vae=self.vae,
+            text_encoder=self.text_encoder,
+            tokenizer=self.tokenizer,
+            unet=self.unet,
+            scheduler=DDIMScheduler(**OmegaConf.to_container(self.inference_config.noise_scheduler_kwargs)),
+        ).to("cuda")
 
     def custom_save_videos_grid(
         self,
@@ -347,8 +371,8 @@ class Predictor(BasePredictor):
             default=7.5,
         ),
         seed: int = Input(
-            description="Seed for different images and reproducibility. Use -1 to randomise seed",
-            default=-1,
+            description="Seed for different images and reproducibility. Leave empty to randomise seed",
+            default=None,
         ),
         zoom_in_motion_strength: float = Input(
             description="Strength of Zoom In Motion LoRA. 0 disables the LoRA",
@@ -418,33 +442,6 @@ class Predictor(BasePredictor):
             choices=["mp4", "gif"],
         ),
     ) -> List[CogPath]:
-        self.inference_config_path = "configs/inference/inference-v2.yaml"
-        self.pretrained_model_path = "models/StableDiffusion/stable-diffusion-v1-5"
-
-        self.inference_config = OmegaConf.load(self.inference_config_path)
-
-        self.tokenizer = CLIPTokenizer.from_pretrained(self.pretrained_model_path, subfolder="tokenizer")
-        self.text_encoder = CLIPTextModel.from_pretrained(self.pretrained_model_path, subfolder="text_encoder")
-        self.vae = AutoencoderKL.from_pretrained(self.pretrained_model_path, subfolder="vae")
-        self.unet = UNet3DConditionModel.from_pretrained_2d(
-            self.pretrained_model_path,
-            subfolder="unet",
-            unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs),
-        )
-
-        if is_xformers_available():
-            self.unet.enable_xformers_memory_efficient_attention()
-        else:
-            assert False
-
-        self.pipeline = AnimationPipeline(
-            vae=self.vae,
-            text_encoder=self.text_encoder,
-            tokenizer=self.tokenizer,
-            unet=self.unet,
-            scheduler=DDIMScheduler(**OmegaConf.to_container(self.inference_config.noise_scheduler_kwargs)),
-        ).to("cuda")
-
         (
             zoom_in_motion_strength,
             zoom_out_motion_strength,
