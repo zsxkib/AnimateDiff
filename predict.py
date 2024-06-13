@@ -2,6 +2,8 @@
 # https://github.com/replicate/cog/blob/gen/docs/python.md
 
 import hashlib
+import re
+import subprocess
 import imageio
 from typing import List
 from cog import BasePredictor, Input
@@ -274,6 +276,50 @@ class Predictor(BasePredictor):
             seed,
         )
 
+    def download_custom_model(self, custom_base_model_url: str):
+        # Validate the custom_base_model_url to ensure it's from "civitai.com"
+        if not re.match(r"^https://civitai\.com/api/download/models/\d+$", custom_base_model_url):
+            raise ValueError(
+                "Invalid URL. Only safetensors downloads from 'https://civitai.com/api/download/models/' are allowed, e.g. 'https://civitai.com/models/84728/photon' -> 'https://civitai.com/api/download/models/90072'"
+            )
+
+        # cmd = ["pget", custom_base_model_url, "models/DreamBooth_LoRA/custom.safetensors"]
+        cmd = ["wget", "-O", "models/DreamBooth_LoRA/custom.safetensors", custom_base_model_url]
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout_output, stderr_output = process.communicate()
+
+        print("Output from wget command:")
+        print(stdout_output)
+        if stderr_output:
+            print("Errors from wget command:")
+            print(stderr_output)
+
+        if process.returncode:
+            raise ValueError(f"Failed to download the custom model. Pget returned code: {process.returncode}")
+        return "custom"
+
+    def download_custom_motionlora(self, custom_motionlora_url: str):
+        # Validate the custom_base_model_url to ensure it's from "civitai.com"
+        if not re.match(r"^https://civitai\.com/api/download/models/\d+$", custom_motionlora_url):
+            raise ValueError(
+                "Invalid URL. Only ckpt downloads from 'https://civitai.com/api/download/models/\{modelVersionId\}' are allowed, e.g. 'https://civitai.com/models/158389?modelVersionId=178017' -> 'https://civitai.com/api/download/models/178017'"
+            )
+
+        # cmd = ["pget", custom_motionlora_url, "models/MotionLoRA/v2_lora_custom.ckpt"]
+        cmd = ["wget", "-O", "models/MotionLoRA/v2_lora_custom.ckpt", custom_motionlora_url]
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout_output, stderr_output = process.communicate()
+
+        print("Output from wget command:")
+        print(stdout_output)
+        if stderr_output:
+            print("Errors from wget command:")
+            print(stderr_output)
+
+        if process.returncode:
+            raise ValueError(f"Failed to download the custom model. Wget returned code: {process.returncode}")
+        return "custom"
+
     def predict(
         self,
         prompt: str = Input(
@@ -281,29 +327,6 @@ class Predictor(BasePredictor):
         ),
         negative_prompt: str = Input(
             default="blur, haze, deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers, deformed, distorted, disfigured, poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, disconnected limbs, mutation, mutated, ugly, disgusting, amputation",
-        ),
-        base_model: str = Input(
-            description="Select a base model (DreamBooth checkpoint)",
-            default="realisticVisionV20_v20",
-            choices=[
-                "realisticVisionV20_v20",
-                "lyriel_v16",
-                "majicmixRealistic_v5Preview",
-                "rcnzCartoon3d_v10",
-                "toonyou_beta3",
-            ],
-        ),
-        steps: int = Input(
-            description="Number of inference steps",
-            ge=1,
-            le=100,
-            default=25,
-        ),
-        guidance_scale: float = Input(
-            description="Guidance Scale. How closely do we want to adhere to the prompt and its contents",
-            ge=0.0,
-            le=20,
-            default=7.5,
         ),
         frames: int = Input(
             description="Length of the video in frames (playback is at 8 fps e.g. 16 frames @ 8 fps is 2 seconds)",
@@ -319,9 +342,37 @@ class Predictor(BasePredictor):
             description="Height in pixels",
             default=512,
         ),
+        base_model: str = Input(
+            description="Choose the base model for animation generation. If 'CUSTOM' is selected, provide a custom model URL in the next parameter",
+            default="majicmixRealistic_v5Preview",
+            choices=[
+                "realisticVisionV20_v20",
+                "lyriel_v16",
+                "majicmixRealistic_v5Preview",
+                "rcnzCartoon3d_v10",
+                "toonyou_beta3",
+                "CUSTOM",
+            ],
+        ),
+        custom_base_model_url: str = Input(
+            description="Only used when base model is set to 'CUSTOM'. URL of the custom model to download if 'CUSTOM' is selected in the base model. Only downloads from 'https://civitai.com/api/download/models/' are allowed",
+            default="",
+        ),
+        steps: int = Input(
+            description="Number of inference steps",
+            ge=1,
+            le=100,
+            default=25,
+        ),
+        guidance_scale: float = Input(
+            description="Guidance Scale. How closely do we want to adhere to the prompt and its contents",
+            ge=0.0,
+            le=20,
+            default=7.5,
+        ),
         seed: int = Input(
-            description="Seed for different images and reproducibility. Use -1 to randomise seed",
-            default=-1,
+            description="Seed for different images and reproducibility. Leave empty to randomise seed",
+            default=None,
         ),
         zoom_in_motion_strength: float = Input(
             description="Strength of Zoom In Motion LoRA. 0 disables the LoRA",
@@ -371,6 +422,20 @@ class Predictor(BasePredictor):
             ge=0.0,
             le=1.0,
         ),
+        use_custom_motionlora: bool = Input(
+            description="Flag to allow downloads of custom MotionLoRAs from CivitAI. When set to true, provide an download URL for `custom_motionlora_url`",
+            default=False,
+        ),
+        custom_motionlora_url: str = Input(
+            description="Only used when flag for custom MotionLoRAs is enabled. Only downloads from 'https://civitai.com/api/download/models/' are allowed",
+            default="",
+        ),
+        custom_motionlora_motion_strength: float = Input(
+            description="Strength of Downloaded Custom Motion LoRA. 0 disables the LoRA",
+            default=0.0,
+            ge=0.0,
+            le=1.0,
+        ),
         output_format: str = Input(
             description="Output format of the video. Can be 'mp4' or 'gif'",
             default="mp4",
@@ -409,6 +474,9 @@ class Predictor(BasePredictor):
             seed,
         )
 
+        if base_model.upper() == "CUSTOM":
+            base_model = self.download_custom_model(custom_base_model_url)
+
         lora_model_path = ""
         motion_module_type = "mm_sd_v15_v2"
         pretrained_model_path = self.pretrained_model_path
@@ -425,6 +493,14 @@ class Predictor(BasePredictor):
             "RollingAnticlockwise": rolling_anticlockwise_motion_strength,
             "RollingClockwise": rolling_clockwise_motion_strength,
         }
+
+        if use_custom_motionlora:
+            # if use_custom_motionlora is True
+            # We download the model (name is returned as "custom")
+            # and set the strength of the LoRA
+            motion_strengths[
+                self.download_custom_motionlora(custom_motionlora_url)
+            ] = custom_motionlora_motion_strength
 
         motion_module_lora_configs = ""
         for motion_lora_type, motion_lora_strength in motion_strengths.items():
@@ -450,9 +526,6 @@ class Predictor(BasePredictor):
             prompt=prompt,
             negative_prompt=negative_prompt,
         )
-        print(f"{'-'*80}")
-        print(config)
-        print(f"{'-'*80}")
 
         args = Arguments(
             pretrained_model_path=pretrained_model_path,
@@ -463,5 +536,9 @@ class Predictor(BasePredictor):
             H=height,
             output_format=output_format,
         )
+
+        print(f"{'-'*80}")
+        print(config)
+        print(f"{'-'*80}")
 
         yield from self.gen(args)
